@@ -50,7 +50,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.1.106:5283/api/Auth/login'),
+        Uri.parse('http://192.168.152.208:5283/api/Auth/login'),
         headers: <String, String>{
           'Content-Type': 'application/json; charset=UTF-8',
         },
@@ -61,9 +61,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       );
 
       if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        final String userId = responseData['id'];
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => VideoScreen(username: username)),
+          MaterialPageRoute(builder: (context) => VideoScreen(username: username,userId: userId,)),
         );
       } else if (response.statusCode == 401) {
         ScaffoldMessenger.of(context).showSnackBar(

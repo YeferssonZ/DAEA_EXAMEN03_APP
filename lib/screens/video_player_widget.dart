@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:chewie/chewie.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:recomendator_app/services/video_service.dart';
+
+import 'dart:async';
 
 class VideoPlayerWidget extends StatefulWidget {
   final String videoUrl;
   final String title;
+  final String userId;
+  final String videoId;
   final bool isCurrent;
   final BaseCacheManager cacheManager;
 
@@ -13,6 +18,8 @@ class VideoPlayerWidget extends StatefulWidget {
     Key? key,
     required this.videoUrl,
     required this.title,
+    required this.userId,
+    required this.videoId,
     required this.cacheManager,
     required this.isCurrent,
   }) : super(key: key);
@@ -26,17 +33,25 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   late ChewieController _chewieController;
   bool _isVideoCompleted = false;
 
+  final StreamController<String> _videoChangeController = StreamController<String>();
+
   @override
   void initState() {
     super.initState();
     _initializePlayer();
+
+    _videoChangeController.stream.listen((newVideoId) {
+      final double percentageWatched = _videoPlayerController.value.position.inMilliseconds /
+          _videoPlayerController.value.duration.inMilliseconds;
+      final double rating = percentageWatched * 5;
+      VideoService.sendRating(widget.userId, newVideoId, rating);
+    });
   }
 
   @override
   void didUpdateWidget(covariant VideoPlayerWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.videoUrl != oldWidget.videoUrl ||
-        widget.isCurrent != oldWidget.isCurrent) {
+    if (widget.videoUrl != oldWidget.videoUrl || widget.isCurrent != oldWidget.isCurrent) {
       _initializePlayer();
     } else if (widget.isCurrent && !_videoPlayerController.value.isPlaying) {
       _videoPlayerController.play();
@@ -61,13 +76,23 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     );
 
     _videoPlayerController.addListener(() {
-      if (_videoPlayerController.value.position ==
-              _videoPlayerController.value.duration &&
-          _videoPlayerController.value.position != Duration.zero) {
+      if (_videoPlayerController.value.position == _videoPlayerController.value.duration &&
+          _videoPlayerController.value.position != Duration.zero &&
+          !_isVideoCompleted) {
+        final double rating = 5;
+        VideoService.sendRating(widget.userId, widget.videoId, rating);
         setState(() {
           _isVideoCompleted = true;
         });
         _chewieController.pause();
+      }
+
+      if (_videoPlayerController.value.isInitialized &&
+          !_videoPlayerController.value.isPlaying &&
+          !_isVideoCompleted &&
+          !_videoPlayerController.value.isBuffering &&
+          _videoPlayerController.value.position != Duration.zero) {
+        _videoChangeController.add(widget.videoId);
       }
     });
   }
@@ -76,6 +101,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   void dispose() {
     _videoPlayerController.dispose();
     _chewieController.dispose();
+    _videoChangeController.close();
     super.dispose();
   }
 
@@ -83,7 +109,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        Chewie(controller: _chewieController),
+        Chewie(
+          controller: _chewieController,
+        ),
         if (_chewieController.isPlaying && !_isVideoCompleted)
           Positioned.fill(
             child: Align(

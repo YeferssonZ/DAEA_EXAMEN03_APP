@@ -5,8 +5,9 @@ import 'package:recomendator_app/services/video_service.dart';
 
 class VideoScreen extends StatefulWidget {
   final String username;
+  final String userId;
 
-  const VideoScreen({Key? key, required this.username}) : super(key: key);
+  const VideoScreen({Key? key, required this.username, required this.userId}) : super(key: key);
 
   @override
   _VideoScreenState createState() => _VideoScreenState();
@@ -62,7 +63,7 @@ class _VideoScreenState extends State<VideoScreen> {
                 color: Colors.blueGrey[900],
               ),
               child: Text(
-                widget.username,
+                widget.userId,
                 style: TextStyle(color: Colors.white, fontSize: 24),
               ),
             ),
@@ -72,7 +73,7 @@ class _VideoScreenState extends State<VideoScreen> {
                 Navigator.pushNamedAndRemoveUntil(
                   context,
                   '/',
-                  (route) => false, // Eliminar todas las rutas existentes
+                  (route) => false,
                 );
               },
             ),
@@ -98,6 +99,8 @@ class _VideoScreenState extends State<VideoScreen> {
                   key: ValueKey(videos[index]['videoUrl']),
                   videoUrl: videos[index]['videoUrl'],
                   title: videos[index]['titulo'],
+                  userId: widget.userId,
+                  videoId: videos[index]['id'],
                   cacheManager: cacheManager,
                   isCurrent: index == _currentIndex,
                 );

@@ -10,10 +10,12 @@ class RegisterScreen extends StatefulWidget {
   _RegisterScreenState createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProviderStateMixin {
+class _RegisterScreenState extends State<RegisterScreen>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   late final AnimationController _passwordVisibilityController;
   bool _isPasswordVisible = false;
 
@@ -71,9 +73,13 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
       );
 
       if (response.statusCode == 200) {
+
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        final String userId = responseData['id'];
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => VideoScreen(username: username)),
+          MaterialPageRoute(
+              builder: (context) => VideoScreen(username: username, userId: userId,)),
         );
       } else if (response.statusCode == 409) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -189,7 +195,8 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
             animation: _passwordVisibilityController,
             builder: (context, child) {
               return RotationTransition(
-                turns: Tween(begin: 0.0, end: 0.5).animate(_passwordVisibilityController),
+                turns: Tween(begin: 0.0, end: 0.5)
+                    .animate(_passwordVisibilityController),
                 child: Icon(
                   _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
                   color: Colors.white70,
@@ -235,7 +242,8 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
             animation: _passwordVisibilityController,
             builder: (context, child) {
               return RotationTransition(
-                turns: Tween(begin: 0.0, end: 0.5).animate(_passwordVisibilityController),
+                turns: Tween(begin: 0.0, end: 0.5)
+                    .animate(_passwordVisibilityController),
                 child: Icon(
                   _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
                   color: Colors.white70,
@@ -270,10 +278,12 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Text('¿Ya tienes cuenta?', style: TextStyle(color: Colors.white70)),
+        const Text('¿Ya tienes cuenta?',
+            style: TextStyle(color: Colors.white70)),
         TextButton(
           onPressed: _handleLogin,
-          child: const Text('Inicia Sesión aquí', style: TextStyle(color: Colors.teal)),
+          child: const Text('Inicia Sesión aquí',
+              style: TextStyle(color: Colors.teal)),
         ),
       ],
     );
