@@ -50,7 +50,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.152.208:5283/api/Auth/login'),
+        Uri.parse('http://192.168.1.106:5283/api/Auth/login'),
         headers: <String, String>{
           'Content-Type': 'application/json; charset=UTF-8',
         },

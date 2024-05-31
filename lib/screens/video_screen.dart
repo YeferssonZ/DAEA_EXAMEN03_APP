@@ -7,7 +7,8 @@ class VideoScreen extends StatefulWidget {
   final String username;
   final String userId;
 
-  const VideoScreen({Key? key, required this.username, required this.userId}) : super(key: key);
+  const VideoScreen({Key? key, required this.username, required this.userId})
+      : super(key: key);
 
   @override
   _VideoScreenState createState() => _VideoScreenState();
@@ -18,6 +19,7 @@ class _VideoScreenState extends State<VideoScreen> {
   final PageController _pageController = PageController();
   int _currentIndex = 0;
   final cacheManager = DefaultCacheManager();
+  double _timeWatched = 0;
 
   @override
   void initState() {
@@ -31,10 +33,26 @@ class _VideoScreenState extends State<VideoScreen> {
     super.dispose();
   }
 
-  void _onPageChanged(int index) {
-    setState(() {
-      _currentIndex = index;
-    });
+  void _onPageChanged(int index) async {
+    try {
+      final videos = await _videos;
+      if (_timeWatched > 0 && _currentIndex < videos.length) {
+        final double rating = (_timeWatched / videos[_currentIndex]['duration'].toDouble()) * 5.0;
+        await VideoService.sendRating(widget.userId, videos[_currentIndex]['id'], double.parse(rating.toStringAsFixed(1)));
+        _timeWatched = 0;
+      }
+      setState(() {
+        _currentIndex = index;
+      });
+    } catch (e) {
+      print('Error on page change: $e');
+    }
+  }
+
+  void _updateTimeWatched(double time) {
+    if (time > 0) {
+      _timeWatched = time;
+    }
   }
 
   @override
@@ -87,23 +105,36 @@ class _VideoScreenState extends State<VideoScreen> {
             return Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return Center(child: Text('No videos found'));
           } else {
             final List<Map<String, dynamic>> videos = snapshot.data!;
             return PageView.builder(
               controller: _pageController,
               scrollDirection: Axis.vertical,
-              itemCount: videos.length,
+              itemCount: videos.length + 1,  // Add one more item for the empty view
               onPageChanged: _onPageChanged,
               itemBuilder: (context, index) {
-                return VideoPlayerWidget(
-                  key: ValueKey(videos[index]['videoUrl']),
-                  videoUrl: videos[index]['videoUrl'],
-                  title: videos[index]['titulo'],
-                  userId: widget.userId,
-                  videoId: videos[index]['id'],
-                  cacheManager: cacheManager,
-                  isCurrent: index == _currentIndex,
-                );
+                if (index >= videos.length) {
+                  return Center(
+                    child: Text(
+                      'No hay más videos',
+                      style: TextStyle(color: Colors.white, fontSize: 24),
+                    ),
+                  );
+                } else {
+                  return VideoPlayerWidget(
+                    key: ValueKey(videos[index]['videoUrl']),
+                    videoUrl: videos[index]['videoUrl'],
+                    title: videos[index]['titulo'],
+                    userId: widget.userId,
+                    videoId: videos[index]['id'],
+                    cacheManager: cacheManager,
+                    isCurrent: index == _currentIndex,
+                    onTimeWatched: _updateTimeWatched,
+                    autoPlay: index == _currentIndex, // Reproducir automáticamente el video actual
+                  );
+                }
               },
             );
           }
