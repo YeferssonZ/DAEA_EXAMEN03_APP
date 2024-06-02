@@ -7,8 +7,7 @@ class VideoScreen extends StatefulWidget {
   final String username;
   final String userId;
 
-  const VideoScreen({Key? key, required this.username, required this.userId})
-      : super(key: key);
+  const VideoScreen({Key? key, required this.username, required this.userId}) : super(key: key);
 
   @override
   _VideoScreenState createState() => _VideoScreenState();
@@ -16,10 +15,13 @@ class VideoScreen extends StatefulWidget {
 
 class _VideoScreenState extends State<VideoScreen> {
   late Future<List<Map<String, dynamic>>> _videos;
+  late Future<Map<String, dynamic>> _recommendation;
   final PageController _pageController = PageController();
   int _currentIndex = 0;
   final cacheManager = DefaultCacheManager();
   double _timeWatched = 0;
+  final Set<String> _ratedVideos = {}; // Keep track of rated videos
+  bool _recommendationLoaded = false; // Track if recommendation is loaded
 
   @override
   void initState() {
@@ -36,22 +38,66 @@ class _VideoScreenState extends State<VideoScreen> {
   void _onPageChanged(int index) async {
     try {
       final videos = await _videos;
-      if (_timeWatched > 0 && _currentIndex < videos.length) {
-        final double rating = (_timeWatched / videos[_currentIndex]['duration'].toDouble()) * 5.0;
-        await VideoService.sendRating(widget.userId, videos[_currentIndex]['id'], double.parse(rating.toStringAsFixed(1)));
-        _timeWatched = 0;
+      if (_currentIndex < videos.length) {
+        await _sendRating(videos[_currentIndex]['id']);
+        setState(() {
+          _timeWatched = 0; // Reset the time watched for the new video
+        });
       }
       setState(() {
         _currentIndex = index;
       });
+
+      if (_currentIndex == videos.length && !_recommendationLoaded) {
+        await _loadRecommendation();
+      }
     } catch (e) {
       print('Error on page change: $e');
     }
   }
 
+  Future<void> _sendRating(String? videoId) async {
+    if (videoId == null) {
+      print('Invalid video ID');
+      return;
+    }
+
+    final String key = '${widget.userId}:$videoId';
+    if (_ratedVideos.contains(key)) {
+      print('User has already rated this video.');
+      return;
+    }
+
+    double rating = _calculateRating(_timeWatched);
+    try {
+      await VideoService.sendRating(widget.userId, videoId, rating);
+      _ratedVideos.add(key);
+    } catch (e) {
+      print('Error sending rating: $e');
+    }
+  }
+
+  double _calculateRating(double timeWatched) {
+    return timeWatched * 5.0; // Scale the time watched directly to a rating out of 5
+  }
+
   void _updateTimeWatched(double time) {
-    if (time > 0) {
+    setState(() {
       _timeWatched = time;
+    });
+  }
+
+  Future<void> _loadRecommendation() async {
+    try {
+      final recommendation = await VideoService.fetchRecommendation(widget.userId);
+      final videos = await _videos;
+      print('Recommendation received: $recommendation');
+      setState(() {
+        _videos = Future.value([...videos, recommendation]);
+        _recommendationLoaded = true;
+      });
+    } catch (e) {
+      print('Error loading recommendation: $e');
     }
   }
 
@@ -112,7 +158,7 @@ class _VideoScreenState extends State<VideoScreen> {
             return PageView.builder(
               controller: _pageController,
               scrollDirection: Axis.vertical,
-              itemCount: videos.length + 1,  // Add one more item for the empty view
+              itemCount: videos.length + 1, // Add one more item for the empty view
               onPageChanged: _onPageChanged,
               itemBuilder: (context, index) {
                 if (index >= videos.length) {
@@ -123,16 +169,30 @@ class _VideoScreenState extends State<VideoScreen> {
                     ),
                   );
                 } else {
+                  final video = videos[index];
+                  final videoUrl = video['videoUrl'];
+                  final title = video['titulo'];
+                  final videoId = video['id'];
+
+                  if (videoUrl == null || title == null || videoId == null) {
+                    print('Invalid data found: $video');
+                    return Center(
+                      child: Text(
+                        'Invalid video data',
+                        style: TextStyle(color: Colors.red, fontSize: 24),
+                      ),
+                    );
+                  }
+
                   return VideoPlayerWidget(
-                    key: ValueKey(videos[index]['videoUrl']),
-                    videoUrl: videos[index]['videoUrl'],
-                    title: videos[index]['titulo'],
+                    key: ValueKey(videoUrl),
+                    videoUrl: videoUrl,
+                    title: title,
                     userId: widget.userId,
-                    videoId: videos[index]['id'],
+                    videoId: videoId,
                     cacheManager: cacheManager,
                     isCurrent: index == _currentIndex,
                     onTimeWatched: _updateTimeWatched,
-                    autoPlay: index == _currentIndex, // Reproducir automáticamente el video actual
                   );
                 }
               },
