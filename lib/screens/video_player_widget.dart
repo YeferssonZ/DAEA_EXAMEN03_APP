@@ -1,3 +1,4 @@
+// VideoPlayerWidget.dart
 import 'package:flutter/material.dart';
 import 'package:chewie/chewie.dart';
 import 'package:flutter/scheduler.dart';
@@ -40,7 +41,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
   void initState() {
     super.initState();
     _initializePlayer();
-    _ticker = createTicker(_updateTimeWatched)..start();
+    _ticker = createTicker((elapsed) => _updateTimeWatched(elapsed))..start();
   }
 
   @override

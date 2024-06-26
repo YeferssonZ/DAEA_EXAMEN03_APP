@@ -7,7 +7,8 @@ class VideoScreen extends StatefulWidget {
   final String username;
   final String userId;
 
-  const VideoScreen({Key? key, required this.username, required this.userId}) : super(key: key);
+  const VideoScreen({Key? key, required this.username, required this.userId})
+      : super(key: key);
 
   @override
   _VideoScreenState createState() => _VideoScreenState();
@@ -15,18 +16,37 @@ class VideoScreen extends StatefulWidget {
 
 class _VideoScreenState extends State<VideoScreen> {
   late Future<List<Map<String, dynamic>>> _videos;
-  late Future<Map<String, dynamic>> _recommendation;
+  List<Map<String, dynamic>> _videoList = [];
+  bool _isLoading = false;
   final PageController _pageController = PageController();
   int _currentIndex = 0;
   final cacheManager = DefaultCacheManager();
   double _timeWatched = 0;
-  final Set<String> _ratedVideos = {}; // Keep track of rated videos
-  bool _recommendationLoaded = false; // Track if recommendation is loaded
+  final Set<String> _ratedVideos = {};
 
   @override
   void initState() {
     super.initState();
     _videos = VideoService.fetchVideos();
+    _loadVideos();
+  }
+
+  Future<void> _loadVideos() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final videos = await _videos;
+      setState(() {
+        _videoList = videos;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading videos: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -36,23 +56,18 @@ class _VideoScreenState extends State<VideoScreen> {
   }
 
   void _onPageChanged(int index) async {
-    try {
-      final videos = await _videos;
-      if (_currentIndex < videos.length) {
-        await _sendRating(videos[_currentIndex]['id']);
-        setState(() {
-          _timeWatched = 0; // Reset the time watched for the new video
-        });
-      }
+    if (_currentIndex < _videoList.length) {
+      await _sendRating(_videoList[_currentIndex]['id']);
       setState(() {
-        _currentIndex = index;
+        _timeWatched = 0;
       });
+    }
+    setState(() {
+      _currentIndex = index;
+    });
 
-      if (_currentIndex == videos.length && !_recommendationLoaded) {
-        await _loadRecommendation();
-      }
-    } catch (e) {
-      print('Error on page change: $e');
+    if (_currentIndex >= _videoList.length) {
+      await _loadRecommendation();
     }
   }
 
@@ -70,7 +85,8 @@ class _VideoScreenState extends State<VideoScreen> {
 
     double rating = _calculateRating(_timeWatched);
     try {
-      await VideoService.sendRating(widget.userId, videoId, rating);
+      await VideoService.sendRating(widget.userId, videoId, rating,
+          DateTime.now().millisecondsSinceEpoch);
       _ratedVideos.add(key);
     } catch (e) {
       print('Error sending rating: $e');
@@ -78,7 +94,7 @@ class _VideoScreenState extends State<VideoScreen> {
   }
 
   double _calculateRating(double timeWatched) {
-    return timeWatched * 5.0; // Scale the time watched directly to a rating out of 5
+    return timeWatched * 5.0;
   }
 
   void _updateTimeWatched(double time) {
@@ -90,11 +106,8 @@ class _VideoScreenState extends State<VideoScreen> {
   Future<void> _loadRecommendation() async {
     try {
       final recommendation = await VideoService.fetchRecommendation(widget.userId);
-      final videos = await _videos;
-      print('Recommendation received: $recommendation');
       setState(() {
-        _videos = Future.value([...videos, recommendation]);
-        _recommendationLoaded = true;
+        _videoList.add(recommendation);
       });
     } catch (e) {
       print('Error loading recommendation: $e');
@@ -144,24 +157,15 @@ class _VideoScreenState extends State<VideoScreen> {
           ],
         ),
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _videos,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(child: Text('No videos found'));
-          } else {
-            final List<Map<String, dynamic>> videos = snapshot.data!;
-            return PageView.builder(
+      body: _isLoading
+          ? Center(child: CircularProgressIndicator())
+          : PageView.builder(
               controller: _pageController,
               scrollDirection: Axis.vertical,
-              itemCount: videos.length + 1, // Add one more item for the empty view
+              itemCount: _videoList.length + 1,
               onPageChanged: _onPageChanged,
               itemBuilder: (context, index) {
-                if (index >= videos.length) {
+                if (index >= _videoList.length) {
                   return Center(
                     child: Text(
                       'No hay más videos',
@@ -169,7 +173,7 @@ class _VideoScreenState extends State<VideoScreen> {
                     ),
                   );
                 } else {
-                  final video = videos[index];
+                  final video = _videoList[index];
                   final videoUrl = video['videoUrl'];
                   final title = video['titulo'];
                   final videoId = video['id'];
@@ -196,10 +200,7 @@ class _VideoScreenState extends State<VideoScreen> {
                   );
                 }
               },
-            );
-          }
-        },
-      ),
+            ),
     );
   }
 }
